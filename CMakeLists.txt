@@ -48,12 +48,11 @@ message("PANGOLIN: ${Pangolin_DIR}")
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
-find_package(Torch QUIET)
+set(TENSORRT_INCLUDE_DIR /usr/include/x86_64-linux-gnu)
+set(TENSORRT_LIBRARY_DIR /usr/lib/x86_64-linux-gnu)
 
-if (NOT Torch_FOUND)
-    set(Torch_DIR "~/install/libtorch/share/cmake/Torch")
-    find_package(Torch REQUIRED)
-endif()
+find_library(NVINFER nvinfer HINTS ${TENSORRT_LIBRARY_DIR})
+find_library(NVONNXPARSER nvonnxparser HINTS ${TENSORRT_LIBRARY_DIR})
 
 include_directories(
 ${PROJECT_SOURCE_DIR}
@@ -62,7 +61,10 @@ ${PROJECT_SOURCE_DIR}/include/CameraModels
 ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
+${TENSORRT_INCLUDE_DIR}
 )
+
+link_directories(${TENSORRT_LIBRARY_DIR})
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
@@ -132,7 +134,6 @@ include/SuperPoint.h
 add_subdirectory(Thirdparty/g2o)
 
 target_link_libraries(${PROJECT_NAME}
-${TORCH_LIBRARIES}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
@@ -140,4 +141,6 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 -lboost_serialization
 -lcrypto
+${NVINFER}
+${NVONNXPARSER}
 )
