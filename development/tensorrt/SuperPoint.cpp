@@ -43,12 +43,11 @@ int SuperPoint::build() {
     if (!constructed)
         return 6;
 
-    cudaStream_t profileStream;
-    cudaStreamCreate(&profileStream);
+    auto profileStream = tensorrt_common::makeCudaStream();
     if (!profileStream)
         return 7;
 
-    config->setProfileStream(profileStream);
+    config->setProfileStream(*profileStream);
 
     std::unique_ptr<nvinfer1::IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
     if (!plan)
@@ -73,12 +72,17 @@ bool SuperPoint::infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dyn
             return false;
     }
 
-    tensorrt_buffer::BufferManager buffers(engine_);
+    CHECK_RETURN_W_MSG(context_->setInputShape(config_.inputTensorNames[0].c_str(), nvinfer1::Dims4(1, 1, img.rows, img.cols)), false, "Invalid binding dimensions");
+
+    tensorrt_buffer::BufferManager buffers(engine_, 0, context_.get());
 
     for (int32_t i = 0, e = engine_->getNbIOTensors(); i < e; i++) {
         auto const name = engine_->getIOTensorName(i);
         context_->setTensorAddress(name, buffers.getDeviceBuffer(name));
     }
+
+    if (!context_->allInputDimensionsSpecified())
+        return false;
 
     ASSERT(config_.inputTensorNames.size() == 1);
 
@@ -129,7 +133,8 @@ bool SuperPoint::constructNetwork(
 
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 512_MiB);
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
-    tensorrt_common::enableDLA(builder.get(), config.get(), config_.dlaCore);
+    if (config_.useDlaCore)
+        tensorrt_common::enableDLA(builder.get(), config.get(), config_.dlaCore);
 
     return true;
 }
@@ -156,9 +161,9 @@ bool SuperPoint::processInput(const tensorrt_buffer::BufferManager& buffers, con
     descDims_.d[3] = img.cols / 8;
     auto* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer(config_.inputTensorNames[0]));
 
-    for (int row = 0; row < img.rows; ++row)
-        for (int col = 0; col < img.cols; ++col)
-            hostDataBuffer[row * img.cols + col] = float(img.at<unsigned char>(row, col)) / 255.f;
+    for (int row = 0; row < img.rows; row++)
+        for (int col = 0; col < img.cols; col++)
+            hostDataBuffer[row * img.cols + col] =  float(img.at<unsigned char>(row, col)) / 255.f;
 
     return true;
 }
@@ -212,6 +217,18 @@ void SuperPoint::findHighScoreIndex(
             std::vector<int> location = {int(i / w), i % w};
             keypoints.emplace_back(location);
             newScores.push_back(scores[i]);
+
+            /*
+            std::cout << indexes[i] << " " << scores[indexes[i]];
+            for (float key : keypoints[indexes[i]])
+                std::cout << " " << key;
+            std::cout << std::endl;
+            
+            std::cout << scores[i];
+            for (float key : location)
+                std::cout << " " << key;
+            std::cout << std::endl;*/
+
         }
     }
 
@@ -260,9 +277,9 @@ void SuperPoint::removeBorders(
         bool flag_w = (keypoints[i][1] >= border) && (keypoints[i][1] < (w - border));
 
         if (flag_h && flag_w) {
-            newKeypoints.push_back(std::vector<int>(keypoints[i][1], keypoints[i][0]));
+            newKeypoints.push_back(std::vector<int>{keypoints[i][1], keypoints[i][0]});
             newScores.push_back(scores[i]);
-        }
+        }        
     }
 
     keypoints.swap(newKeypoints);
@@ -362,4 +379,18 @@ void SuperPoint::sampleDescriptors(
     normalize_keypoints(keypoints, normKeypoints, h, w, s);
     grid_sample(descriptors, normKeypoints, destDescriptors, dim, h, w);
     normalize_descriptors(destDescriptors);
+}
+
+void SuperPoint::visualize(const std::string& img_path, const cv::Mat& img) {
+    cv::Mat display;
+    if (img.channels() == 1)
+        cv::cvtColor(img, display, cv::COLOR_GRAY2BGR);
+    else 
+        display = img.clone();
+
+    for (auto& keypoint : keypoints_) {
+        cv::circle(display, cv::Point(int(keypoint[0]), int(keypoint[1])), 1, cv::Scalar(255, 0, 0), -1, 16);
+    }
+    
+    cv::imwrite(img_path + ".jpg", display);
 }

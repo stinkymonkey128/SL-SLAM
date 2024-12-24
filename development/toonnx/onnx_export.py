@@ -9,7 +9,8 @@ spoint.eval()
 
 dummy_input = torch.randn(1,1,480,752)
 
-spoint_onnx = torch.onnx.dynamo_export(spoint, dummy_input)
+export_options = torch.onnx.ExportOptions(dynamic_shapes=True)
+spoint_onnx = torch.onnx.dynamo_export(spoint, dummy_input, export_options=export_options)
 spoint_onnx.save('SuperPoint.onnx')
 
 ort_session = ort.InferenceSession("SuperPoint.onnx")

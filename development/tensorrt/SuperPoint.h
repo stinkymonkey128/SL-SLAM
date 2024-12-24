@@ -27,6 +27,7 @@ struct SuperPointConfig {
     std::string engineFilePath;
     std::vector<std::string> inputTensorNames; // should be size 1 with idx 0 being input img in grayscale
     std::vector<std::string> outputTensorNames; // should be size 2 with idx 0 being score and idx 1 being descriptors
+    bool useDlaCore;
     int dlaCore;
     float confThreshold;
     int removeBorders;
