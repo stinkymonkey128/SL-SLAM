@@ -10,15 +10,9 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
-Thirdparty/DBoW2/build/
-Thirdparty/DBoW2/lib/
-Thirdparty/g2o/build/
 Thirdparty/g2o/config.h
-Thirdparty/g2o/lib/
-Thirdparty/tensorrtbuffer/lib/
-Thirdparty/tensorrtbuffer/build/
 Vocabulary/ORBvoc.txt
 build/
 lib/
 development/tensorrt/build
-development/tensorrt/tensorrt_test
+__pycache__/

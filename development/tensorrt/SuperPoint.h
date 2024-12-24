@@ -1,6 +1,6 @@
 /*
-* Ripped from https://github.com/yuefanhao/SuperPoint-SuperGlue-TensorRT
-* with major compatibility updates for tensorrt 10.x+
+* ripped from https://github.com/yuefanhao/SuperPoint-SuperGlue-TensorRT
+* with compaitibility update with TensorRT 10.7+
 */
 
 #ifndef SUPERPOINT_H
@@ -19,19 +19,25 @@
 #include <cuda_runtime_api.h>
 
 #include "logger.h"
+#include "buffers.h"
+#include "common.h"
 
 struct SuperPointConfig {
     std::string onnxFilePath;
     std::string engineFilePath;
-    std::vector<std::string> inputTensorNames;
+    std::vector<std::string> inputTensorNames; // should be size 1 with idx 0 being input img in grayscale
+    std::vector<std::string> outputTensorNames; // should be size 2 with idx 0 being score and idx 1 being descriptors
     int dlaCore;
+    float confThreshold;
+    int removeBorders;
+    int maxKeypoints;
 };
 
 class SuperPoint {
     public:
         SuperPoint(SuperPointConfig config);
 
-        bool build();
+        int build();
         bool infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dynamic>& features);
         void visualize(const std::string& img_path, const cv::Mat& img);
         void saveEngine();
@@ -55,11 +61,43 @@ class SuperPoint {
             std::unique_ptr<nvinfer1::IBuilderConfig>& config,
             std::unique_ptr<nvonnxparser::IParser>& parser
         ) const;
-    
-};
 
-constexpr std::size_t operator"" _MiB(unsigned long long int value) {
-    return value * (1ULL << 20);
-}
+        bool processInput(const tensorrt_buffer::BufferManager& buffers, const cv::Mat& img);
+        bool processOutput(const tensorrt_buffer::BufferManager& buffers, Eigen::Matrix<double, 259, Eigen::Dynamic>& features);
+
+        void findHighScoreIndex(
+            std::vector<std::vector<int>>& keypoints,
+            std::vector<float>& scores, 
+            int h, 
+            int w, 
+            double threshold
+        );
+
+        void topKKeypoints(
+            std::vector<std::vector<int>>& keypoints, 
+            std::vector<float>& scores, 
+            int k
+        );
+
+        std::vector<size_t> sortIndexes(std::vector<float>& data);
+
+        void removeBorders(
+            std::vector<std::vector<int>>& keypoints, 
+            std::vector<float>& scores, 
+            int border, 
+            int h, 
+            int w
+        );
+
+        void sampleDescriptors(
+            std::vector<std::vector<int>>& keypoints,
+            float* descriptors,
+            std::vector<std::vector<double>>& destDescriptors,
+            int dim,
+            int h,
+            int w,
+            int s = 8
+        );
+};
 
 #endif
