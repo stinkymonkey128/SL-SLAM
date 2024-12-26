@@ -32,6 +32,7 @@ add_executable(
     ${PROJECT_NAME} 
     main.cpp
     SuperPoint.cpp
+    LightGlue.cpp
 )
 
 target_link_libraries(

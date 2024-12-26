@@ -6,7 +6,7 @@ SuperPoint::SuperPoint(SuperPointConfig config) :
     config_(config),
     engine_(nullptr)
 {
-    setReportableSeverity(Logger::Severity::kVERBOSE);
+    setReportableSeverity(config_.logSeverity);
 }
 
 int SuperPoint::build() {
@@ -37,6 +37,7 @@ int SuperPoint::build() {
     profile->setDimensions(config_.inputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims4(1, 1, 100, 100));
     profile->setDimensions(config_.inputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims4(1, 1, 500, 500));
     profile->setDimensions(config_.inputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims4(1, 1, 1500, 1500));
+    
     config->addOptimizationProfile(profile);
 
     auto constructed = constructNetwork(builder, network, config, parser);
@@ -131,7 +132,7 @@ bool SuperPoint::constructNetwork(
     if (!parsed)
         return false;
 
-    config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 512_MiB);
+    config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, config_.memoryPoolLimit);
     config->setFlag(nvinfer1::BuilderFlag::kFP16);
     if (config_.useDlaCore)
         tensorrt_common::enableDLA(builder.get(), config.get(), config_.dlaCore);
@@ -217,18 +218,6 @@ void SuperPoint::findHighScoreIndex(
             std::vector<int> location = {int(i / w), i % w};
             keypoints.emplace_back(location);
             newScores.push_back(scores[i]);
-
-            /*
-            std::cout << indexes[i] << " " << scores[indexes[i]];
-            for (float key : keypoints[indexes[i]])
-                std::cout << " " << key;
-            std::cout << std::endl;
-            
-            std::cout << scores[i];
-            for (float key : location)
-                std::cout << " " << key;
-            std::cout << std::endl;*/
-
         }
     }
 

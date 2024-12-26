@@ -1,4 +1,5 @@
 #include "SuperPoint.h"
+#include "LightGlue.h"
 
 #include <iostream>
 
@@ -17,9 +18,9 @@ int main() {
     SuperPoint spoint(config);
     int buildStatus = spoint.build();
     if (!buildStatus)
-        std::cout << "Successfully built or loaded engine!" << std::endl;
+        std::cout << "Successfully built or loaded SuperPoint engine!" << std::endl;
     else
-        std::cout << "Failed to build engine... error code " << buildStatus << std::endl;
+        std::cout << "Failed to build SuperPoint engine... error code " << buildStatus << std::endl;
 
     cv::Mat image0 = cv::imread("00000.jpg");
 
@@ -32,7 +33,22 @@ int main() {
         return 1;
     }
 
+    std::cout << "Shape of feature matrix [ " << feature_points0.rows() << ", " << feature_points0.cols() << "] \n";
+
     spoint.visualize("out", image0);
+
+    LightGlueConfig lgConfig;
+    lgConfig.onnxFilePath = "LightGlue.onnx";
+    lgConfig.inputTensorNames = {"l_keypoints_", "l_descriptors_"};
+    lgConfig.outputTensorNames = {"cat_18", "index_19"};
+    lgConfig.logSeverity = tensorrt_log::Logger::Severity::kVERBOSE;
+
+    LightGlue lightGlue(lgConfig);
+    buildStatus = lightGlue.build();
+    if (!buildStatus)
+        std::cout << "Successfully built or loaded LightGlue engine!" << std::endl;
+    else
+        std::cout << "Failed to build LightGlue engine... error code " << buildStatus << std::endl;
 
     return 0;
 }

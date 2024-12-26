@@ -16,3 +16,6 @@ build/
 lib/
 development/tensorrt/build
 __pycache__/
+*.onnx
+*.sarif
+*.engine
