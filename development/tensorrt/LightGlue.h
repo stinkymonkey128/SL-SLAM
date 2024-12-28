@@ -39,7 +39,7 @@ public:
 
     int build();
     bool infer(
-        std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
+        const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
         std::vector<Eigen::VectorXi>& indices,
         std::vector<Eigen::VectorXd>& scores
     );

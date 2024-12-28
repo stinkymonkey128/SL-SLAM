@@ -132,5 +132,5 @@ bool LightGlue::infer(
             return false;
     }
 
-
+    return true;
 }

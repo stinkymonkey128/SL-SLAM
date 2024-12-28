@@ -79,8 +79,7 @@ bool SuperPoint::infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dyn
 
     for (int32_t i = 0, e = engine_->getNbIOTensors(); i < e; i++) {
         auto const name = engine_->getIOTensorName(i);
-        context_->setTensorAddress(name, buffers.getDeviceBuffer(name));
-    }
+        context_->setTensorAddress(name, buffers.getDeviceBuffer(name));    }
 
     if (!context_->allInputDimensionsSpecified())
         return false;
@@ -95,11 +94,31 @@ bool SuperPoint::infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dyn
     bool status = context_->executeV2(buffers.getDeviceBindings().data());
     if (!status)
         return false;
-
-    buffers.copyOutputToHost();
-    if (!processOutput(buffers, features))
-        return false;
     
+    buffers.copyOutputToHost();
+    /*
+    if (!processOutput(buffers, features))
+        return false;*/
+
+    float* keypoints = static_cast<float*>(buffers.getHostBuffer(config_.outputTensorNames[0]));
+    float* scores = static_cast<float*>(buffers.getHostBuffer(config_.outputTensorNames[1]));
+    float* descriptors = static_cast<float*>(buffers.getHostBuffer(config_.outputTensorNames[2]));
+    
+    nvinfer1::Dims kpsDims = context_->getTensorShape(config_.outputTensorNames[0].c_str());
+    int numKeypoints = kpsDims.d[1];
+
+    features.resize(259, numKeypoints);
+
+    for (int i = 0; i < numKeypoints; i++) {
+        features(0, i) = static_cast<double>(scores[i]);
+        features(1, i) = static_cast<double>(keypoints[i*2]);
+        features(2, i) = static_cast<double>(keypoints[i*2 + 1]);
+
+        for (int d = 0; d < 256; d++) {
+            features(3 + d, i) = static_cast<double>(descriptors[i*256 + d]);
+        }
+    }
+
     return true;
 }
 
@@ -162,9 +181,17 @@ bool SuperPoint::processInput(const tensorrt_buffer::BufferManager& buffers, con
     descDims_.d[3] = img.cols / 8;
     auto* hostDataBuffer = static_cast<float*>(buffers.getHostBuffer(config_.inputTensorNames[0]));
 
-    for (int row = 0; row < img.rows; row++)
-        for (int col = 0; col < img.cols; col++)
-            hostDataBuffer[row * img.cols + col] =  float(img.at<unsigned char>(row, col)) / 255.f;
+    cv::Mat gray;
+    if (img.channels() == 3)
+        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = img;
+
+    for (int row = 0; row < gray.rows; row++) {
+        for (int col = 0; col < gray.cols; col++) {
+            hostDataBuffer[row * img.cols + col] =  float(gray.at<unsigned char>(row, col)) / 255.f;
+        }
+    }
 
     return true;
 }
@@ -370,16 +397,29 @@ void SuperPoint::sampleDescriptors(
     normalize_descriptors(destDescriptors);
 }
 
-void SuperPoint::visualize(const std::string& img_path, const cv::Mat& img) {
+void SuperPoint::visualize(
+    const cv::Mat& img, 
+    const Eigen::Matrix<double, 259, Eigen::Dynamic>& features, 
+    const std::string& outImgPath
+) {
     cv::Mat display;
+
     if (img.channels() == 1)
         cv::cvtColor(img, display, cv::COLOR_GRAY2BGR);
-    else 
+    else
         display = img.clone();
 
-    for (auto& keypoint : keypoints_) {
-        cv::circle(display, cv::Point(int(keypoint[0]), int(keypoint[1])), 1, cv::Scalar(255, 0, 0), -1, 16);
+    const int numKeypoints = features.cols();
+
+    for (int i = 0; i < numKeypoints; ++i) {
+        cv::circle(
+            display,
+            cv::Point(static_cast<int>(features(1, i)), static_cast<int>(features(2, i))),
+            1,
+            cv::Scalar(0, 255, 0),
+            -1
+        );
     }
-    
-    cv::imwrite(img_path + ".jpg", display);
+
+    cv::imwrite(outImgPath + ".jpg", display);
 }

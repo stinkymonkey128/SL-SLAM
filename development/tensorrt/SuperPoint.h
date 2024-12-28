@@ -41,8 +41,13 @@ public:
     SuperPoint(SuperPointConfig config);
 
     int build();
+    // out features with idx0 scores idx1 & idx2 keypoints >= idx3 being descriptor
     bool infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dynamic>& features);
-    void visualize(const std::string& img_path, const cv::Mat& img);
+    static void visualize(
+        const cv::Mat& img, 
+        const Eigen::Matrix<double, 259, Eigen::Dynamic>& features, 
+        const std::string& outImgPath
+    );
     void saveEngine();
     bool deserializeEngine();
 private:

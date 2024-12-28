@@ -8,12 +8,14 @@ int main() {
     config.dlaCore = 0;
     config.onnxFilePath = "SuperPoint.onnx";
     config.engineFilePath = "SuperPoint.engine";
-    config.inputTensorNames = {"l_data_"};
-    config.outputTensorNames = {"where_2", "div"};
+    config.inputTensorNames = {"input"};
+    config.outputTensorNames = {"keypoints", "scores", "descriptors"};
     config.confThreshold = 0.0005;
     config.removeBorders = 0;
     config.maxKeypoints = 1024;
     config.useDlaCore = false;
+    config.logSeverity = tensorrt_log::Logger::Severity::kVERBOSE;
+    config.memoryPoolLimit = 512_MiB;
 
     SuperPoint spoint(config);
     int buildStatus = spoint.build();
@@ -33,9 +35,9 @@ int main() {
         return 1;
     }
 
-    std::cout << "Shape of feature matrix [ " << feature_points0.rows() << ", " << feature_points0.cols() << "] \n";
+    spoint.visualize(image0, feature_points0, "out");
 
-    spoint.visualize("out", image0);
+    return 0;
 
     LightGlueConfig lgConfig;
     lgConfig.onnxFilePath = "LightGlue.onnx";
