@@ -43,6 +43,7 @@
 # Adapted by Remi Pautrat, Philipp Lindenberger
 # Adapted by Fabio Milentiansen Sim
 
+# FROM https://github.com/fabio-sim/LightGlue-ONNX/blob/main/lightglue_dynamo/models/superpoint.py
 
 import torch
 import torch.nn.functional as F

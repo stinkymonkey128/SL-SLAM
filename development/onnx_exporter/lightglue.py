@@ -1,9 +1,11 @@
+# FROM https://github.com/fabio-sim/LightGlue-ONNX/blob/main/lightglue_dynamo/models/lightglue.py
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 
-from multi_head_attention import multi_head_attention_dispatch
+from multi_head_attention_dispatch import multi_head_attention_dispatch
 
 torch.backends.cudnn.deterministic = True
 
@@ -163,7 +165,7 @@ def filter_matches(scores: torch.Tensor, threshold: float):
 class LightGlue(nn.Module):
     def __init__(
         self,
-        url: str,
+        url: str = 'https://github.com/cvg/LightGlue/releases/download/v0.1_arxiv/superpoint_lightglue.pth',
         input_dim: int = 256,
         descriptor_dim: int = 256,
         num_heads: int = 4,
@@ -227,7 +229,7 @@ class LightGlue(nn.Module):
 
         scores = self.log_assignment[i](descriptors)  # (B, N, N)
         matches, mscores = filter_matches(scores, self.filter_threshold)
-        return matches, mscores  # (M, 3), (M,)
+        return matches.float(), mscores.unsqueeze(0)  # (M, 3), (1, M)
 
     def confidence_threshold(self, layer_index: int) -> float:
         """scaled confidence threshold"""

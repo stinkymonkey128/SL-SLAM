@@ -22,11 +22,13 @@
 #include "buffers.h"
 #include "common.h"
 
+#define MAX_KEYPOINTS 1024
+
 struct LightGlueConfig {
     std::string onnxFilePath;
     std::string engineFilePath = "LightGlue.engine";
-    std::vector<std::string> inputTensorNames; // should be size 2 with idx0 being keypoints and idx1 being descriptors
-    std::vector<std::string> outputTensorNames; // should be size 2 
+    std::vector<std::string> inputTensorNames = {"keypoints", "descriptors"};
+    std::vector<std::string> outputTensorNames = {"matches", "scores"};
     bool useDlaCore = false;
     int dlaCore = 0;
     size_t memoryPoolLimit = 512_MiB;
@@ -40,8 +42,10 @@ public:
     int build();
     bool infer(
         const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
-        std::vector<Eigen::VectorXi>& indices,
-        std::vector<Eigen::VectorXd>& scores
+        std::vector<Eigen::VectorXi>& matches,
+        std::vector<Eigen::VectorXd>& scores,
+        int imgHeight,
+        int imgWidth
     );
     void saveEngine();
     bool deserializeEngine();
@@ -58,6 +62,19 @@ private:
         std::unique_ptr<nvinfer1::IBuilderConfig>& config,
         std::unique_ptr<nvonnxparser::IParser>& parser
     ) const;
+
+    bool processInput(
+        const tensorrt_buffer::BufferManager& buffers, 
+        const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
+        int imgHeight,
+        int imgWidth
+    );
+
+    bool processOutput(
+        const tensorrt_buffer::BufferManager& buffers,
+        std::vector<Eigen::VectorXi>& matches,
+        std::vector<Eigen::VectorXd>& scores
+    );
 };
 
 #endif

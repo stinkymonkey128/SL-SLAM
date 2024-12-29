@@ -245,6 +245,9 @@ namespace tensorrt_buffer {
                 mNames[name] = i;
 
                 auto dims = context ? context->getTensorShape(name) : mEngine->getTensorShape(name);
+
+                std::cout << "Created new ManagedBuffer for " << name << " with dimension " << dims << std::endl;
+
                 size_t vol = context || !mBatchSize ? 1 : static_cast<size_t>(mBatchSize);
                 nvinfer1::DataType type = mEngine->getTensorDataType(name);
                 int32_t vecDim = mEngine->getTensorVectorizedDim(name);

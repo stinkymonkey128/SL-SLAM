@@ -25,13 +25,10 @@
 struct SuperPointConfig {
     std::string onnxFilePath;
     std::string engineFilePath = "SuperPoint.engine";
-    std::vector<std::string> inputTensorNames; // should be size 1 with idx 0 being input img in grayscale
-    std::vector<std::string> outputTensorNames; // should be size 2 with idx 0 being score and idx 1 being descriptors
+    std::vector<std::string> inputTensorNames = {"input"};
+    std::vector<std::string> outputTensorNames = {"keypoints", "scores", "descriptors"};
     bool useDlaCore = false;
     int dlaCore = 0;
-    float confThreshold = 0.0005f;
-    int removeBorders = 0;
-    int maxKeypoints = 1024;
     size_t memoryPoolLimit = 512_MiB;
     tensorrt_log::Logger::Severity logSeverity = tensorrt_log::Logger::Severity::kINTERNAL_ERROR;
 };
@@ -41,6 +38,7 @@ public:
     SuperPoint(SuperPointConfig config);
 
     int build();
+
     // out features with idx0 scores idx1 & idx2 keypoints >= idx3 being descriptor
     bool infer(const cv::Mat& img, Eigen::Matrix<double, 259, Eigen::Dynamic>& features);
     static void visualize(
@@ -53,15 +51,8 @@ public:
 private:
     SuperPointConfig config_;
 
-    nvinfer1::Dims inputDims_;
-    nvinfer1::Dims semiDims_;
-    nvinfer1::Dims descDims_;
-
     std::shared_ptr<nvinfer1::ICudaEngine> engine_;
     std::shared_ptr<nvinfer1::IExecutionContext> context_;
-
-    std::vector<std::vector<int>> keypoints_;
-    std::vector<std::vector<double>>  descriptors_;
 
     bool constructNetwork(
         std::unique_ptr<nvinfer1::IBuilder>& builder,
@@ -70,41 +61,14 @@ private:
         std::unique_ptr<nvonnxparser::IParser>& parser
     ) const;
 
-    bool processInput(const tensorrt_buffer::BufferManager& buffers, const cv::Mat& img);
-    bool processOutput(const tensorrt_buffer::BufferManager& buffers, Eigen::Matrix<double, 259, Eigen::Dynamic>& features);
-
-    void findHighScoreIndex(
-        std::vector<std::vector<int>>& keypoints,
-        std::vector<float>& scores, 
-        int h, 
-        int w, 
-        double threshold
+    bool processInput(
+        const tensorrt_buffer::BufferManager& buffers, 
+        const cv::Mat& img
     );
 
-    void topKKeypoints(
-        std::vector<std::vector<int>>& keypoints, 
-        std::vector<float>& scores, 
-        int k
-    );
-
-    std::vector<size_t> sortIndexes(std::vector<float>& data);
-
-    void removeBorders(
-        std::vector<std::vector<int>>& keypoints, 
-        std::vector<float>& scores, 
-        int border, 
-        int h, 
-        int w
-    );
-
-    void sampleDescriptors(
-        std::vector<std::vector<int>>& keypoints,
-        float* descriptors,
-        std::vector<std::vector<double>>& destDescriptors,
-        int dim,
-        int h,
-        int w,
-        int s = 8
+    bool processOutput(
+        const tensorrt_buffer::BufferManager& buffers, 
+        Eigen::Matrix<double, 259, Eigen::Dynamic>& features
     );
 };
 
