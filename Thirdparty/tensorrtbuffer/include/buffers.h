@@ -246,8 +246,6 @@ namespace tensorrt_buffer {
 
                 auto dims = context ? context->getTensorShape(name) : mEngine->getTensorShape(name);
 
-                std::cout << "Created new ManagedBuffer for " << name << " with dimension " << dims << std::endl;
-
                 size_t vol = context || !mBatchSize ? 1 : static_cast<size_t>(mBatchSize);
                 nvinfer1::DataType type = mEngine->getTensorDataType(name);
                 int32_t vecDim = mEngine->getTensorVectorizedDim(name);
@@ -258,6 +256,52 @@ namespace tensorrt_buffer {
                     vol *= scalarsPerVec;
                 }
                 vol *= tensorrt_common::volume(dims);
+                std::unique_ptr<ManagedBuffer> manBuf{new ManagedBuffer()};
+                manBuf->deviceBuffer = DeviceBuffer(vol, type);
+                manBuf->hostBuffer = HostBuffer(vol, type);
+                void* deviceBuffer = manBuf->deviceBuffer.data();
+                mDeviceBindings.emplace_back(deviceBuffer);
+                mManagedBuffers.emplace_back(std::move(manBuf));
+            }
+        }
+
+        //!
+        //! \brief Create a BufferManager for manual memory allocation
+        //!
+        BufferManager(
+            std::shared_ptr<nvinfer1::ICudaEngine> engine, 
+            std::unordered_map<std::string, size_t>& memoryMapping,
+            int32_t const batchSize = 0,
+            nvinfer1::IExecutionContext const* context = nullptr
+        ) : 
+            mEngine(engine), 
+            mBatchSize(batchSize)
+        {
+            // Create host and device buffers
+            for (int32_t i = 0, e = mEngine->getNbIOTensors(); i < e; i++)
+            {
+                auto const name = engine->getIOTensorName(i);
+                mNames[name] = i;
+
+                auto dims = context ? context->getTensorShape(name) : mEngine->getTensorShape(name);
+                size_t vol = 1;
+
+                if (memoryMapping.find(name) != memoryMapping.end()) {
+                    vol = memoryMapping[name];
+                } else {
+                    vol = context || !mBatchSize ? 1 : static_cast<size_t>(mBatchSize);
+                    int32_t vecDim = mEngine->getTensorVectorizedDim(name);
+
+                    if (-1 != vecDim) // i.e., 0 != lgScalarsPerVector
+                    {
+                        int32_t scalarsPerVec = mEngine->getTensorComponentsPerElement(name);
+                        dims.d[vecDim] = divUp(dims.d[vecDim], scalarsPerVec);
+                        vol *= scalarsPerVec;
+                    }
+                    vol *= tensorrt_common::volume(dims);
+                }
+
+                nvinfer1::DataType type = mEngine->getTensorDataType(name);
                 std::unique_ptr<ManagedBuffer> manBuf{new ManagedBuffer()};
                 manBuf->deviceBuffer = DeviceBuffer(vol, type);
                 manBuf->hostBuffer = HostBuffer(vol, type);

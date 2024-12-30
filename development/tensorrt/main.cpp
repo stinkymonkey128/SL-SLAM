@@ -30,7 +30,7 @@ int main() {
         return 1;
     }
 
-    // spoint.visualize(image0, feature_points0, "out");
+    spoint.visualize(image0, feature_points0, "out.jpg");
 
     LightGlueConfig lgConfig;
     lgConfig.onnxFilePath = "LightGlue.onnx";
@@ -43,13 +43,16 @@ int main() {
     else
         std::cout << "Failed to build LightGlue engine... error code " << buildStatus << std::endl;
 
-    std::vector<Eigen::VectorXi> matches;
-    std::vector<Eigen::VectorXd> scores;
+    std::vector<cv::Point> kpts0;
+    std::vector<cv::Point> kpts1;
+    Eigen::VectorXd scores;
 
-    if (!lightGlue.infer({feature_points0, feature_points1}, matches, scores, image0.rows, image0.cols)) {
+    if (!lightGlue.infer({feature_points0, feature_points1}, kpts0, kpts1, scores, image0.rows, image0.cols)) {
         std::cout << "Something FATAL happened while running inference!" << std::endl;
         return 1;
     }
+
+    lightGlue.visualize(image0, image1, kpts0, kpts1, scores, "match.jpg");
 
     return 0;
 }

@@ -217,5 +217,5 @@ void SuperPoint::visualize(
         );
     }
 
-    cv::imwrite(outImgPath + ".jpg", display);
+    cv::imwrite(outImgPath, display);
 }

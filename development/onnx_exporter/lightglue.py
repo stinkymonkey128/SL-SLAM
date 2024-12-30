@@ -171,8 +171,8 @@ class LightGlue(nn.Module):
         num_heads: int = 4,
         n_layers: int = 9,
         filter_threshold: float = 0.1,  # match threshold
-        depth_confidence: float = -1,  # -1 is no early stopping, recommend: 0.95
-        width_confidence: float = -1,  # -1 is no point pruning, recommend: 0.99
+        depth_confidence: float = 0.95,  # -1 is no early stopping, recommend: 0.95
+        width_confidence: float = 0.1,  # -1 is no point pruning, recommend: 0.99
     ) -> None:
         super().__init__()
 

@@ -30,20 +30,6 @@ int LightGlue::build() {
     if (!parser)
         return 4;
 
-    auto profile = builder->createOptimizationProfile();
-    if (!profile)
-        return 5;
-
-    profile->setDimensions(config_.outputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims2(1, 3));
-    profile->setDimensions(config_.outputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims2(512, 3));
-    profile->setDimensions(config_.outputTensorNames[0].c_str(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims2(1024, 3));
-    
-    profile->setDimensions(config_.outputTensorNames[1].c_str(), nvinfer1::OptProfileSelector::kMIN, nvinfer1::Dims2(1, 1));
-    profile->setDimensions(config_.outputTensorNames[1].c_str(), nvinfer1::OptProfileSelector::kOPT, nvinfer1::Dims2(1, 512));
-    profile->setDimensions(config_.outputTensorNames[1].c_str(), nvinfer1::OptProfileSelector::kMAX, nvinfer1::Dims2(1, 1024));
-    
-    config->addOptimizationProfile(profile);
-
     auto constructed = constructNetwork(builder, network, config, parser);
     if (!constructed)
         return 6;
@@ -121,10 +107,11 @@ void LightGlue::saveEngine() {
 
 bool LightGlue::infer(
     const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
-    std::vector<Eigen::VectorXi>& matches,
-    std::vector<Eigen::VectorXd>& scores,
-    int imgHeight,
-    int imgWidth
+    std::vector<cv::Point>& kpts0,
+    std::vector<cv::Point>& kpts1,
+    Eigen::VectorXd& scores,
+    const int imgHeight,
+    const int imgWidth
 ) {
     if (!context_) {
         context_ = std::unique_ptr<nvinfer1::IExecutionContext>(engine_->createExecutionContext());
@@ -132,15 +119,16 @@ bool LightGlue::infer(
             return false;
     }
 
-    tensorrt_buffer::BufferManager buffers(engine_, 0, context_.get());
+    std::unordered_map<std::string, size_t> memoryMapping; // force allocation to max keypoints
+    memoryMapping[config_.outputTensorNames[0]] = 3 * MAX_KEYPOINTS; // assume idx 0 is matches
+    memoryMapping[config_.outputTensorNames[1]] = MAX_KEYPOINTS;
+    
+    tensorrt_buffer::BufferManager buffers(engine_, memoryMapping, 0, context_.get());
 
     for (int32_t i = 0, e = engine_->getNbIOTensors(); i < e; i++) {
         auto const name = engine_->getIOTensorName(i);
         context_->setTensorAddress(name, buffers.getDeviceBuffer(name));    
     }
-
-    if (!context_->allInputDimensionsSpecified())
-        return false;
 
     ASSERT(config_.inputTensorNames.size() == 2);
 
@@ -155,7 +143,7 @@ bool LightGlue::infer(
 
     buffers.copyOutputToHost();
 
-    if (!processOutput(buffers, matches, scores))
+    if (!processOutput(buffers, features, kpts0, kpts1, scores))
         return false;
 
     return true;
@@ -172,16 +160,20 @@ bool LightGlue::processInput(
     // keypoints [2, 1024, 2]
     // descriptors [2, 1024, 256]
 
+    float shiftX = imgWidth / 2.f;
+    float shiftY = imgHeight / 2.f;
+    float scale = (imgHeight > imgWidth ? imgHeight : imgWidth) / 2;
+
     for (int i = 0; i < 2; i++) {
         for (int point = 0; point < MAX_KEYPOINTS; point++) {
             double x = features[i](1, point);
             double y = features[i](2, point);
 
-            float norm_x = 2.f * static_cast<float>(x) / static_cast<float>(imgWidth) - 1.f;
-            float norm_y = 2.f * static_cast<float>(y) / static_cast<float>(imgHeight) - 1.f;
+            float normX = (static_cast<float>(x) - shiftX) / scale;
+            float normY = (static_cast<float>(y) - shiftY) / scale;
 
-            keypoints[i * MAX_KEYPOINTS + point * 2] = norm_x;
-            keypoints[i * MAX_KEYPOINTS + point * 2 + 1] = norm_y;
+            keypoints[i * MAX_KEYPOINTS * 2 + point * 2] = normX;
+            keypoints[i * MAX_KEYPOINTS * 2 + point * 2 + 1] = normY;
 
             for (int d = 0; d < 256; d++)
                 descriptors[i * MAX_KEYPOINTS * 256 + point * 256 + d] = features[i](3 + d, point);
@@ -193,16 +185,103 @@ bool LightGlue::processInput(
 
 bool LightGlue::processOutput(
     const tensorrt_buffer::BufferManager& buffers, 
-    std::vector<Eigen::VectorXi>& matches,
-    std::vector<Eigen::VectorXd>& scores
+    const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
+    std::vector<cv::Point>& kpts0,
+    std::vector<cv::Point>& kpts1,
+    Eigen::VectorXd& scores
 ) {
     float* outMatches = static_cast<float*>(buffers.getHostBuffer(config_.outputTensorNames[0]));
     float* outScores = static_cast<float*>(buffers.getHostBuffer(config_.outputTensorNames[1]));
 
-    nvinfer1::Dims matchDims = context_->getTensorShape(config_.outputTensorNames[0].c_str());
-    int numMatches = matchDims.d[0];
+    kpts0.clear();
+    kpts1.clear();
+    scores.resize(0);
 
-    std::cout << "NUMBER OF MATCHES " << numMatches << std::endl;
+    int match = 0;
 
+    for (match = 0; match < MAX_KEYPOINTS; match++) {
+        if (outMatches[match * 3] != 0)
+            break;
+
+        float score = outScores[match];
+        int img0KptIdx = static_cast<int>(outMatches[match * 3 + 1]);
+        int img1KptIdx = static_cast<int>(outMatches[match * 3 + 2]);
+
+        cv::Point kp0(
+            static_cast<int>(features[0](1, img0KptIdx)),
+            static_cast<int>(features[0](2, img0KptIdx))
+        );
+
+        cv::Point kp1(
+            static_cast<int>(features[1](1, img1KptIdx)),
+            static_cast<int>(features[1](2, img1KptIdx))
+        );
+
+        kpts0.emplace_back(kp0);
+        kpts1.emplace_back(kp1);
+
+        scores.conservativeResize(scores.size() + 1);
+        scores[scores.size() - 1] = score;
+    }
+
+    std::cout << "Found " << match << " matches!\n";
     return true;
+}
+
+cv::Scalar getJetColor(double score, double minScore, double maxScore) {
+    double normalized = (score - minScore) / (maxScore - minScore);
+    normalized = std::max(0.0, std::min(1.0, normalized));
+
+    double r = std::max(0.0, std::min(1.0, 1.5 - std::abs(4.0 * normalized - 3.0)));
+    double g = std::max(0.0, std::min(1.0, 1.5 - std::abs(4.0 * normalized - 2.0)));
+    double b = std::max(0.0, std::min(1.0, 1.5 - std::abs(4.0 * normalized - 1.0)));
+
+    return cv::Scalar(b * 255, g * 255, r * 255);
+}
+
+void LightGlue::visualize(
+    const cv::Mat& img0,
+    const cv::Mat& img1,
+    const std::vector<cv::Point> kpts0, 
+    const std::vector<cv::Point> kpts1,
+    const Eigen::VectorXd scores,
+    const std::string& outImgPath,
+    const float scaleFactor
+) {
+    cv::Mat resizedImg0, resizedImg1;
+    cv::resize(img0, resizedImg0, cv::Size(), scaleFactor, scaleFactor);
+    cv::resize(img1, resizedImg1, cv::Size(), scaleFactor, scaleFactor);
+
+    std::vector<cv::Point> scaledKpts0, scaledKpts1;
+    for (const auto& kp : kpts0)
+        scaledKpts0.emplace_back(kp * scaleFactor);
+    for (const auto& kp : kpts1)
+        scaledKpts1.emplace_back(kp * scaleFactor);
+
+    int height = std::max(resizedImg0.rows, resizedImg1.rows);
+    int width = resizedImg0.cols + resizedImg1.cols;
+    cv::Mat canvas(height, width, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    resizedImg0.copyTo(canvas(cv::Rect(0, 0, resizedImg0.cols, resizedImg0.rows)));
+    resizedImg1.copyTo(canvas(cv::Rect(resizedImg0.cols, 0, resizedImg1.cols, resizedImg1.rows)));
+
+    for (auto& kp : scaledKpts1) {
+        kp.x += resizedImg0.cols;
+    }
+
+    double minScore = scores.minCoeff();
+    double maxScore = scores.maxCoeff();
+
+    for (size_t i = 0; i < scaledKpts0.size(); ++i) {
+        if (i >= scaledKpts1.size() || i >= scores.size()) continue;
+
+        cv::Scalar color = getJetColor(scores[i], minScore, maxScore);
+
+        cv::circle(canvas, scaledKpts0[i], 1, color, cv::FILLED);
+        cv::circle(canvas, scaledKpts1[i], 1, color, cv::FILLED);
+
+        cv::line(canvas, scaledKpts0[i], scaledKpts1[i], color, 1);
+    }
+
+    cv::imwrite(outImgPath, canvas);
 }

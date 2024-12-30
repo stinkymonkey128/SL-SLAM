@@ -42,13 +42,24 @@ public:
     int build();
     bool infer(
         const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
-        std::vector<Eigen::VectorXi>& matches,
-        std::vector<Eigen::VectorXd>& scores,
-        int imgHeight,
-        int imgWidth
+        std::vector<cv::Point>& kpts0,
+        std::vector<cv::Point>& kpts1,
+        Eigen::VectorXd& scores,
+        const int imgHeight,
+        const int imgWidth
     );
     void saveEngine();
     bool deserializeEngine();
+
+    static void visualize(
+        const cv::Mat& img0,
+        const cv::Mat& img1,
+        const std::vector<cv::Point> kpts0, 
+        const std::vector<cv::Point> kpts1,
+        const Eigen::VectorXd scores,
+        const std::string& outImgPath,
+        const float scaleFactor = 0.9
+    );
 
 private:
     LightGlueConfig config_;
@@ -72,8 +83,10 @@ private:
 
     bool processOutput(
         const tensorrt_buffer::BufferManager& buffers,
-        std::vector<Eigen::VectorXi>& matches,
-        std::vector<Eigen::VectorXd>& scores
+        const std::vector<Eigen::Matrix<double, 259, Eigen::Dynamic>>& features,
+        std::vector<cv::Point>& kpts0,
+        std::vector<cv::Point>& kpts1,
+        Eigen::VectorXd& scores
     );
 };
 
