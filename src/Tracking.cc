@@ -919,207 +919,6 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
             mK_(1,2) = cy;
         }
 
-        if(mSensor==System::STEREO || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD){
-            // Right camera
-            // Camera calibration parameters
-            cv::FileNode node = fSettings["Camera2.fx"];
-            if(!node.empty() && node.isReal())
-            {
-                fx = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.fx parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-            node = fSettings["Camera2.fy"];
-            if(!node.empty() && node.isReal())
-            {
-                fy = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.fy parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-            node = fSettings["Camera2.cx"];
-            if(!node.empty() && node.isReal())
-            {
-                cx = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.cx parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-            node = fSettings["Camera2.cy"];
-            if(!node.empty() && node.isReal())
-            {
-                cy = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.cy parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-            // Distortion parameters
-            node = fSettings["Camera2.k1"];
-            if(!node.empty() && node.isReal())
-            {
-                k1 = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.k1 parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-            node = fSettings["Camera2.k2"];
-            if(!node.empty() && node.isReal())
-            {
-                k2 = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.k2 parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-            node = fSettings["Camera2.k3"];
-            if(!node.empty() && node.isReal())
-            {
-                k3 = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.k3 parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-            node = fSettings["Camera2.k4"];
-            if(!node.empty() && node.isReal())
-            {
-                k4 = node.real();
-            }
-            else
-            {
-                std::cerr << "*Camera2.k4 parameter doesn't exist or is not a real number*" << std::endl;
-                b_miss_params = true;
-            }
-
-
-            int leftLappingBegin = -1;
-            int leftLappingEnd = -1;
-
-            int rightLappingBegin = -1;
-            int rightLappingEnd = -1;
-
-            node = fSettings["Camera.lappingBegin"];
-            if(!node.empty() && node.isInt())
-            {
-                leftLappingBegin = node.operator int();
-            }
-            else
-            {
-                std::cout << "WARNING: Camera.lappingBegin not correctly defined" << std::endl;
-            }
-            node = fSettings["Camera.lappingEnd"];
-            if(!node.empty() && node.isInt())
-            {
-                leftLappingEnd = node.operator int();
-            }
-            else
-            {
-                std::cout << "WARNING: Camera.lappingEnd not correctly defined" << std::endl;
-            }
-            node = fSettings["Camera2.lappingBegin"];
-            if(!node.empty() && node.isInt())
-            {
-                rightLappingBegin = node.operator int();
-            }
-            else
-            {
-                std::cout << "WARNING: Camera2.lappingBegin not correctly defined" << std::endl;
-            }
-            node = fSettings["Camera2.lappingEnd"];
-            if(!node.empty() && node.isInt())
-            {
-                rightLappingEnd = node.operator int();
-            }
-            else
-            {
-                std::cout << "WARNING: Camera2.lappingEnd not correctly defined" << std::endl;
-            }
-
-            node = fSettings["Tlr"];
-            cv::Mat cvTlr;
-            if(!node.empty())
-            {
-                cvTlr = node.mat();
-                if(cvTlr.rows != 3 || cvTlr.cols != 4)
-                {
-                    std::cerr << "*Tlr matrix have to be a 3x4 transformation matrix*" << std::endl;
-                    b_miss_params = true;
-                }
-            }
-            else
-            {
-                std::cerr << "*Tlr matrix doesn't exist*" << std::endl;
-                b_miss_params = true;
-            }
-
-            if(!b_miss_params)
-            {
-                if(mImageScale != 1.f)
-                {
-                    // K matrix parameters must be scaled.
-                    fx = fx * mImageScale;
-                    fy = fy * mImageScale;
-                    cx = cx * mImageScale;
-                    cy = cy * mImageScale;
-
-                    leftLappingBegin = leftLappingBegin * mImageScale;
-                    leftLappingEnd = leftLappingEnd * mImageScale;
-                    rightLappingBegin = rightLappingBegin * mImageScale;
-                    rightLappingEnd = rightLappingEnd * mImageScale;
-                }
-
-                static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[0] = leftLappingBegin;
-                static_cast<KannalaBrandt8*>(mpCamera)->mvLappingArea[1] = leftLappingEnd;
-
-                mpFrameDrawer->both = true;
-
-                vector<float> vCamCalib2{fx,fy,cx,cy,k1,k2,k3,k4};
-                mpCamera2 = new KannalaBrandt8(vCamCalib2);
-                mpCamera2 = mpAtlas->AddCamera(mpCamera2);
-
-                mTlr = Converter::toSophus(cvTlr);
-
-                static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[0] = rightLappingBegin;
-                static_cast<KannalaBrandt8*>(mpCamera2)->mvLappingArea[1] = rightLappingEnd;
-
-                std::cout << "- Camera1 Lapping: " << leftLappingBegin << ", " << leftLappingEnd << std::endl;
-
-                std::cout << std::endl << "Camera2 Parameters:" << std::endl;
-                std::cout << "- Camera: Fisheye" << std::endl;
-                std::cout << "- Image scale: " << mImageScale << std::endl;
-                std::cout << "- fx: " << fx << std::endl;
-                std::cout << "- fy: " << fy << std::endl;
-                std::cout << "- cx: " << cx << std::endl;
-                std::cout << "- cy: " << cy << std::endl;
-                std::cout << "- k1: " << k1 << std::endl;
-                std::cout << "- k2: " << k2 << std::endl;
-                std::cout << "- k3: " << k3 << std::endl;
-                std::cout << "- k4: " << k4 << std::endl;
-
-                std::cout << "- mTlr: \n" << cvTlr << std::endl;
-
-                std::cout << "- Camera2 Lapping: " << rightLappingBegin << ", " << rightLappingEnd << std::endl;
-            }
-        }
-
         if(b_miss_params)
         {
             return false;
@@ -1130,25 +929,6 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
     {
         std::cerr << "*Not Supported Camera Sensor*" << std::endl;
         std::cerr << "Check an example configuration file with the desired sensor" << std::endl;
-    }
-
-    if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD )
-    {
-        cv::FileNode node = fSettings["Camera.bf"];
-        if(!node.empty() && node.isReal())
-        {
-            mbf = node.real();
-            if(mImageScale != 1.f)
-            {
-                mbf *= mImageScale;
-            }
-        }
-        else
-        {
-            std::cerr << "*Camera.bf parameter doesn't exist or is not a real number*" << std::endl;
-            b_miss_params = true;
-        }
-
     }
 
     float fps = fSettings["Camera.fps"];
@@ -1169,44 +949,6 @@ bool Tracking::ParseCamParamFile(cv::FileStorage &fSettings)
         cout << "- color order: RGB (ignored if grayscale)" << endl;
     else
         cout << "- color order: BGR (ignored if grayscale)" << endl;
-
-    if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD)
-    {
-        float fx = mpCamera->getParameter(0);
-        cv::FileNode node = fSettings["ThDepth"];
-        if(!node.empty()  && node.isReal())
-        {
-            mThDepth = node.real();
-            mThDepth = mbf*mThDepth/fx;
-            cout << endl << "Depth Threshold (Close/Far Points): " << mThDepth << endl;
-        }
-        else
-        {
-            std::cerr << "*ThDepth parameter doesn't exist or is not a real number*" << std::endl;
-            b_miss_params = true;
-        }
-
-
-    }
-
-    if(mSensor==System::RGBD || mSensor==System::IMU_RGBD)
-    {
-        cv::FileNode node = fSettings["DepthMapFactor"];
-        if(!node.empty() && node.isReal())
-        {
-            mDepthMapFactor = node.real();
-            if(fabs(mDepthMapFactor)<1e-5)
-                mDepthMapFactor=1;
-            else
-                mDepthMapFactor = 1.0f/mDepthMapFactor;
-        }
-        else
-        {
-            std::cerr << "*DepthMapFactor parameter doesn't exist or is not a real number*" << std::endl;
-            b_miss_params = true;
-        }
-
-    }
 
     if(b_miss_params)
     {
@@ -1283,9 +1025,6 @@ bool Tracking::ParseORBParamFile(cv::FileStorage &fSettings)
     }
 
     mpORBextractorLeft = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
-
-    if(mSensor==System::STEREO || mSensor==System::IMU_STEREO)
-        mpORBextractorRight = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
 
     if(mSensor==System::MONOCULAR || mSensor==System::IMU_MONOCULAR)
         mpIniORBextractor = new ORBextractor(5*nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
@@ -1744,7 +1483,7 @@ void Tracking::Track()
     }
 
 
-    if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && mpLastKeyFrame)
+    if ((mSensor == System::IMU_MONOCULAR) && mpLastKeyFrame)
         mCurrentFrame.SetNewBias(mpLastKeyFrame->GetImuBias());
 
     if(mState==NO_IMAGES_YET)
@@ -1754,7 +1493,7 @@ void Tracking::Track()
 
     mLastProcessedState=mState;
 
-    if ((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && !mbCreatedMap)
+    if ((mSensor == System::IMU_MONOCULAR) && !mbCreatedMap)
     {
 #ifdef REGISTER_TIMES
         std::chrono::steady_clock::time_point time_StartPreIMU = std::chrono::steady_clock::now();
@@ -1786,14 +1525,7 @@ void Tracking::Track()
 
     if(mState==NOT_INITIALIZED)
     {
-        if(mSensor==System::STEREO || mSensor==System::RGBD || mSensor==System::IMU_STEREO || mSensor==System::IMU_RGBD)
-        {
-            StereoInitialization();
-        }
-        else
-        {
-            MonocularInitialization();
-        }
+        MonocularInitialization();
 
         //mpFrameDrawer->Update(this);
 
@@ -1847,7 +1579,7 @@ void Tracking::Track()
                 if (!bOK)
                 {
                     if ( mCurrentFrame.mnId<=(mnLastRelocFrameId+mnFramesToResetIMU) &&
-                         (mSensor==System::IMU_MONOCULAR || mSensor==System::IMU_STEREO || mSensor == System::IMU_RGBD))
+                         (mSensor==System::IMU_MONOCULAR))
                     {
                         mState = LOST;
                     }
@@ -1871,7 +1603,7 @@ void Tracking::Track()
                     Verbose::PrintMess("Lost for a short time", Verbose::VERBOSITY_NORMAL);
 
                     bOK = true;
-                    if((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD))
+                    if(mSensor == System::IMU_MONOCULAR)
                     {
                         if(pCurrentMap->isImuInitialized())
                             PredictStateIMU();
@@ -1926,7 +1658,7 @@ void Tracking::Track()
             // Localization Mode: Local Mapping is deactivated (TODO Not available in inertial mode)
             if(mState==LOST)
             {
-                if(mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+                if(mSensor == System::IMU_MONOCULAR)
                     Verbose::PrintMess("IMU. State LOST", Verbose::VERBOSITY_NORMAL);
                 bOK = Relocalization();
             }
@@ -2031,7 +1763,7 @@ void Tracking::Track()
             mState = OK;
         else if (mState == OK)
         {
-            if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+            if (mSensor == System::IMU_MONOCULAR)
             {
                 Verbose::PrintMess("Track lost for less than one second...", Verbose::VERBOSITY_NORMAL);
                 if(!pCurrentMap->isImuInitialized() || !pCurrentMap->GetIniertialBA2())
@@ -2053,7 +1785,7 @@ void Tracking::Track()
 
         // Save frame if recent relocalization, since they are used for IMU reset (as we are making copy, it shluld be once mCurrFrame is completely modified)
         if((mCurrentFrame.mnId<(mnLastRelocFrameId+mnFramesToResetIMU)) && (mCurrentFrame.mnId > mnFramesToResetIMU) &&
-           (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && pCurrentMap->isImuInitialized())
+           (mSensor == System::IMU_MONOCULAR) && pCurrentMap->isImuInitialized())
         {
             // TODO check this situation
             Verbose::PrintMess("Saving pointer to frame. imu needs reset...", Verbose::VERBOSITY_NORMAL);
@@ -2103,7 +1835,7 @@ void Tracking::Track()
                 mbVelocity = false;
             }
 
-            if(mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+            if(mSensor == System::IMU_MONOCULAR)
                 mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
 
             // Clean VO matches
@@ -2134,7 +1866,7 @@ void Tracking::Track()
             // Check if we need to insert a new keyframe
             // if(bNeedKF && bOK)
             if(bNeedKF && (bOK || (mInsertKFsLost && mState==RECENTLY_LOST &&
-                                   (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD))))
+                                   (mSensor == System::IMU_MONOCULAR))))
                 CreateNewKeyFrame();
 
 #ifdef REGISTER_TIMES
@@ -2163,7 +1895,7 @@ void Tracking::Track()
                 mpSystem->ResetActiveMap();
                 return;
             }
-            if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+            if (mSensor == System::IMU_MONOCULAR)
                 if (!pCurrentMap->isImuInitialized())
                 {
                     Verbose::PrintMess("Track lost before IMU initialisation, reseting...", Verbose::VERBOSITY_QUIET);
@@ -2218,120 +1950,6 @@ void Tracking::Track()
     }
 #endif
 }
-
-
-void Tracking::StereoInitialization()
-{
-    if(mCurrentFrame.N>500)
-    {
-        if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
-        {
-            if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated)
-            {
-                cout << "not IMU meas" << endl;
-                return;
-            }
-
-            if (!mFastInit && (mCurrentFrame.mpImuPreintegratedFrame->avgA-mLastFrame.mpImuPreintegratedFrame->avgA).norm()<0.5)
-            {
-                cout << "not enough acceleration" << endl;
-                return;
-            }
-
-            if(mpImuPreintegratedFromLastKF)
-                delete mpImuPreintegratedFromLastKF;
-
-            mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);
-            mCurrentFrame.mpImuPreintegrated = mpImuPreintegratedFromLastKF;
-        }
-
-        // Set Frame pose to the origin (In case of inertial SLAM to imu)
-        if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
-        {
-            Eigen::Matrix3f Rwb0 = mCurrentFrame.mImuCalib.mTcb.rotationMatrix();
-            Eigen::Vector3f twb0 = mCurrentFrame.mImuCalib.mTcb.translation();
-            Eigen::Vector3f Vwb0;
-            Vwb0.setZero();
-            mCurrentFrame.SetImuPoseVelocity(Rwb0, twb0, Vwb0);
-        }
-        else
-            mCurrentFrame.SetPose(Sophus::SE3f());
-
-        // Create KeyFrame
-        KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpAtlas->GetCurrentMap(),mpKeyFrameDB);
-
-        // Insert KeyFrame in the map
-        mpAtlas->AddKeyFrame(pKFini);
-
-        // Create MapPoints and asscoiate to KeyFrame
-        if(!mpCamera2){
-            for(int i=0; i<mCurrentFrame.N;i++)
-            {
-                float z = mCurrentFrame.mvDepth[i];
-                if(z>0)
-                {
-                    Eigen::Vector3f x3D;
-                    mCurrentFrame.UnprojectStereo(i, x3D);
-                    MapPoint* pNewMP = new MapPoint(x3D, pKFini, mpAtlas->GetCurrentMap());
-                    pNewMP->AddObservation(pKFini,i);
-                    pKFini->AddMapPoint(pNewMP,i);
-                    pNewMP->ComputeDistinctiveDescriptors();
-                    pNewMP->UpdateNormalAndDepth();
-                    mpAtlas->AddMapPoint(pNewMP);
-
-                    mCurrentFrame.mvpMapPoints[i]=pNewMP;
-                }
-            }
-        } else{
-            for(int i = 0; i < mCurrentFrame.Nleft; i++){
-                int rightIndex = mCurrentFrame.mvLeftToRightMatch[i];
-                if(rightIndex != -1){
-                    Eigen::Vector3f x3D = mCurrentFrame.mvStereo3Dpoints[i];
-
-                    MapPoint* pNewMP = new MapPoint(x3D, pKFini, mpAtlas->GetCurrentMap());
-
-                    pNewMP->AddObservation(pKFini,i);
-                    pNewMP->AddObservation(pKFini,rightIndex + mCurrentFrame.Nleft);
-
-                    pKFini->AddMapPoint(pNewMP,i);
-                    pKFini->AddMapPoint(pNewMP,rightIndex + mCurrentFrame.Nleft);
-
-                    pNewMP->ComputeDistinctiveDescriptors();
-                    pNewMP->UpdateNormalAndDepth();
-                    mpAtlas->AddMapPoint(pNewMP);
-
-                    mCurrentFrame.mvpMapPoints[i]=pNewMP;
-                    mCurrentFrame.mvpMapPoints[rightIndex + mCurrentFrame.Nleft]=pNewMP;
-                }
-            }
-        }
-
-        Verbose::PrintMess("New Map created with " + to_string(mpAtlas->MapPointsInMap()) + " points", Verbose::VERBOSITY_QUIET);
-
-        //cout << "Active map: " << mpAtlas->GetCurrentMap()->GetId() << endl;
-
-        mpLocalMapper->InsertKeyFrame(pKFini);
-
-        mLastFrame = Frame(mCurrentFrame);
-        mnLastKeyFrameId = mCurrentFrame.mnId;
-        mpLastKeyFrame = pKFini;
-        //mnLastRelocFrameId = mCurrentFrame.mnId;
-
-        mvpLocalKeyFrames.push_back(pKFini);
-        mvpLocalMapPoints=mpAtlas->GetAllMapPoints();
-        mpReferenceKF = pKFini;
-        mCurrentFrame.mpReferenceKF = pKFini;
-
-        mpAtlas->SetReferenceMapPoints(mvpLocalMapPoints);
-
-        mpAtlas->GetCurrentMap()->mvpKeyFrameOrigins.push_back(pKFini);
-
-        mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
-
-        mState=OK;
-    }
-}
-
 
 void Tracking::MonocularInitialization()
 {
@@ -2551,7 +2169,7 @@ void Tracking::CreateMapInAtlas()
 {
     mnLastInitFrameId = mCurrentFrame.mnId;
     mpAtlas->CreateNewMap();
-    if (mSensor==System::IMU_STEREO || mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_RGBD)
+    if (mSensor == System::IMU_MONOCULAR)
         mpAtlas->SetInertialSensor();
     mbSetInit=false;
 
@@ -2568,7 +2186,7 @@ void Tracking::CreateMapInAtlas()
         mbReadyToInitializate = false;
     }
 
-    if((mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) && mpImuPreintegratedFromLastKF)
+    if((mSensor == System::IMU_MONOCULAR) && mpImuPreintegratedFromLastKF)
     {
         delete mpImuPreintegratedFromLastKF;
         mpImuPreintegratedFromLastKF = new IMU::Preintegrated(IMU::Bias(),*mpImuCalib);
@@ -2660,7 +2278,7 @@ bool Tracking::TrackReferenceKeyFrame()
         }
     }
 
-    if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+    if (mSensor == System::IMU_MONOCULAR)
         return true;
     else
         return nmatchesMap>=10;
@@ -2787,7 +2405,7 @@ bool Tracking::TrackWithMotionModel()
     if(nmatches<20)
     {
         Verbose::PrintMess("Not enough matches!!", Verbose::VERBOSITY_NORMAL);
-        if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+        if (mSensor == System::IMU_MONOCULAR)
             return true;
         else
             return false;
@@ -2828,7 +2446,7 @@ bool Tracking::TrackWithMotionModel()
         return nmatches>20;
     }
 
-    if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD)
+    if (mSensor == System::IMU_MONOCULAR)
         return true;
     else
         return nmatchesMap>=10;
@@ -2907,8 +2525,6 @@ bool Tracking::TrackLocalMap()
                 else
                     mnMatchesInliers++;
             }
-            else if(mSensor==System::STEREO)
-                mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
         }
     }
 

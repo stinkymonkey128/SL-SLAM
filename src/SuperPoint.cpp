@@ -185,13 +185,8 @@ bool SuperPoint::processOutput(const tensorrt_buffer::BufferManager& buffers, Ei
         features(0, i) = static_cast<double>(scores[i]);
         features(1, i) = static_cast<double>(keypoints[i*2]);
         features(2, i) = static_cast<double>(keypoints[i*2 + 1]);
+#include "SuperPoint.h"
 
-        for (int d = 0; d < 256; d++)
-            features(3 + d, i) = static_cast<double>(descriptors[i*256 + d]);
-    }
-
-    return true;
-}
 
 void SuperPoint::visualize(
     const cv::Mat& img, 
