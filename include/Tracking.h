@@ -58,8 +58,18 @@ class Tracking
 
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Atlas* pAtlas,
-             KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq=std::string());
+    Tracking(
+        System* pSys, 
+        ORBVocabulary* pVoc, 
+        FrameDrawer* pFrameDrawer, 
+        MapDrawer* pMapDrawer, 
+        Atlas* pAtlas,
+        KeyFrameDatabase* pKFDB, 
+        const string &strSettingPath, 
+        const int sensor, 
+        Settings* settings, 
+        const string &_nameSeq=std::string()
+    );
 
     ~Tracking();
 
@@ -69,8 +79,6 @@ public:
     bool ParseIMUParamFile(cv::FileStorage &fSettings);
 
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
-    Sophus::SE3f GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp, string filename);
-    Sophus::SE3f GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, string filename);
     Sophus::SE3f GrabImageMonocular(const cv::Mat &im, const double &timestamp, string filename);
 
     void GrabImuData(const IMU::Point &imuMeasurement);
@@ -304,14 +312,6 @@ protected:
     int mnFirstImuFrameId;
     int mnFramesToResetIMU;
 
-    // Threshold close/far points
-    // Points seen as close by the stereo/RGBD sensor are considered reliable
-    // and inserted from just one frame. Far points requiere a match in two keyframes.
-    float mThDepth;
-
-    // For RGB-D inputs only. For some datasets (e.g. TUM) the depthmap values are scaled.
-    float mDepthMapFactor;
-
     //Current matches in frame
     int mnMatchesInliers;
 
@@ -349,7 +349,7 @@ protected:
     double mTime_LocalMapTrack;
     double mTime_NewKF_Dec;
 
-    GeometricCamera* mpCamera, *mpCamera2;
+    GeometricCamera* mpCamera;
 
     int initID, lastID;
 

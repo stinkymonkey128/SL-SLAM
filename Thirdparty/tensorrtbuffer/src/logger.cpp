@@ -15,10 +15,8 @@
  */
 
 #include "logger.h"
-#include "error_recorder.h"
 #include "logging.h"
 
-TensorRTErrorRecorder gRecorder;
 namespace tensorrt_log {
     Logger gLogger{Logger::Severity::kINFO};
     LogStreamConsumer gLogVerbose{LOG_VERBOSE(gLogger)};
