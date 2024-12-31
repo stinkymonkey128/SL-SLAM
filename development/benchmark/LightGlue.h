@@ -1,6 +1,6 @@
 /*
-* due to issues with dynamo not being able to handle i64 
-* shapes must be static so max keypoints must be predetermined
+* dynamic output tensors are forced to maximum keypoint volume
+* TODO: figure out IOutputAllocator and address limitations of swapping to enqueueV3
 */
 
 #ifndef LIGHTGLUE_H
