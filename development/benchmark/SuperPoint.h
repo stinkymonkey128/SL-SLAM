@@ -1,8 +1,3 @@
-/*
-* ripped from https://github.com/yuefanhao/SuperPoint-SuperGlue-TensorRT
-* with compaitibility update with TensorRT 10.7+
-*/
-
 #ifndef SUPERPOINT_H
 #define SUPERPOINT_H
 
