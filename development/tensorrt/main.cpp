@@ -34,7 +34,6 @@ int main() {
 
     LightGlueConfig lgConfig;
     lgConfig.onnxFilePath = "LightGlue.onnx";
-    lgConfig.logSeverity = tensorrt_log::Logger::Severity::kVERBOSE;
 
     LightGlue lightGlue(lgConfig);
     buildStatus = lightGlue.build();
